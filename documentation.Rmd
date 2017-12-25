@@ -1,0 +1,83 @@
+---
+title: "documentation ap"
+author: "Aurelien Roussille"
+date: "25 décembre 2017"
+output: html_document
+runtime: shiny
+---
+
+#app to analyse french main stock market
+
+##Summary
+
+Here, we load the main stock from the french market CAC 40, and the index itself, to observe it. A tool is added, it a simple moving average, at 2, 5 and 10 days, to get the differents trends.
+
+How to use it ?
+
+
+First, select the stock (the index itself is selected by default), then, with the graph load with plotly, you can observe the evolution of the stock, via a candlestick graph. 
+
+
+```{r input, echo=FALSE}
+comp<-c("CAC40","Total","Sanofi","BNP","LVMH","Airbus","Axa","L'Oreal","Air Liquide","Danone","Vinci","Schneider","Societe Generale","Kering","Orange")
+ref<-data.frame("^FCHI","FP.PA","SAN.PA","BNP.PA","MC.PA","AIR.PA","CS.PA","OR.PA","AI.PA","BN.PA","DG.PA","SU.PA","GLE.PA","KER.PA","ORA.PA")
+colnames(ref)<-comp
+
+      selectInput("titre","Company:",
+                  choice=colnames(ref))
+      checkboxInput("Sma","Simple Moving Average",FALSE)
+
+```
+
+The green is a day where the stock increased and red it decreased. You can zoom etc... as plotly permit you to do it.
+
+
+```{r echo=FALSE}
+suppressMessages(suppressWarnings(library(quantmod)))
+suppressMessages(suppressWarnings(library(plotly)))
+suppressMessages(suppressWarnings(library(dplyr)))
+
+data<-read.csv("stock.csv",sep=",",dec=".",header=TRUE)
+data<-data[,-1]
+
+sortie<-reactive({
+    compa<-input$titre
+    temp<-filter(data,name==compa)
+  
+   
+    if (input$Sma==TRUE){
+      sma1<-rollmean(temp$Close,2)
+      sma5<-rollmean(temp$Close,5)
+      sma10<-rollmean(temp$Close,10)
+      temp$Date<-as.Date(temp$Date)
+      temps<-subset(temp,Date>="2017-09-25")
+      temp<-cbind(temps,tail(sma1,dim(temps)[1]),tail(sma5,dim(temps)[1]),tail(sma10,dim(temps)[1]))
+      colnames(temp)<-c("Date","Open","High","Low","Close","Volume","Adjusted","name","sma1","sma5","sma10")
+      temp
+    } else {
+      temp$Date<-as.Date(temp$Date)
+      temps<-subset(temp,Date>="2017-09-25")
+      temp<-temps
+      temp
+    }
+  })
+  
+ renderPlotly({
+    sortie<-sortie()
+    if (input$Sma==FALSE){
+      plot_ly(sortie,x=~Date,type="candlestick",
+              open=~Open,close=~Close,high=~High,low=~Low)%>%
+        layout(title="Quarterly evolution")
+    } else {
+      plot_ly(sortie,x=~Date,type="candlestick",
+              open=~Open,close=~Close,high=~High,low=~Low)%>%
+        layout(title="Quarterly evolution")%>%
+        add_lines(y=~sma1,name="2 day")%>%
+        add_lines(y=~sma5,name="5 days")%>%
+        add_lines(y=~sma10,name="10 days")
+    }
+    
+    
+  })
+  
+```
